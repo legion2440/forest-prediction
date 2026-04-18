@@ -1,0 +1,14 @@
+name: forest-prediction
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13.5
+  - pip=26.0.1
+  - numpy=2.4.4
+  - pandas=3.0.2
+  - matplotlib=3.10.8
+  - seaborn=0.13.2
+  - notebook=7.5.5
+  - pip:
+      - joblib==1.5.3
+      - scikit-learn==1.8.0

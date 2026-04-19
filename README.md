@@ -1,60 +1,159 @@
-# Forest Prediction
+# forest-prediction
 
-This project implements a reproducible forest cover type classification pipeline for the `forest-prediction` subject. The workflow follows the required split strategy, evaluates only the five requested model families, saves the best full pipeline as a pickle file, and uses that saved pipeline to score the external `data/test.csv`.
+Проект по задаче классификации типа лесного покрова на основе табличных признаков.
 
-## Goal
+## Описание
 
-The goal is to predict `Cover_Type` from cartographic variables, while keeping model selection honest and reproducible:
+В проекте реализован полный pipeline для задачи multiclass classification:
+- загрузка и подготовка данных;
+- feature engineering;
+- раздельный preprocessing внутри pipeline;
+- сравнение 5 обязательных семейств моделей через GridSearchCV;
+- выбор лучшей модели по cross-validation;
+- оценка на внутреннем holdout;
+- сохранение лучшего полного pipeline;
+- предсказание на внешнем тестовом наборе;
+- построение confusion matrix и learning curve;
+- отдельный EDA notebook.
 
-- `train.csv` is split into Train(1) and Test(1) with an 80/20 stratified split.
-- model selection is performed only on Train(1) with 5-fold stratified cross-validation.
-- the saved artifact is the full best pipeline, not a bare estimator.
-- `data/test.csv` is used only in `scripts/predict.py`.
+## Цель
 
-## Repository Structure
+Нужно обучить модель, которая предсказывает `Cover_Type` по признакам из датасета forest cover.
+
+Дополнительно проект должен:
+- использовать holdout split внутри `train.csv`;
+- использовать минимум 5-fold cross-validation;
+- сравнить 5 обязательных семейств моделей;
+- сохранить лучший pipeline в `pickle`;
+- показать confusion matrix и learning curve;
+- выдать предсказания для внешнего `test.csv`.
+
+## Структура проекта
 
 ```text
-project/
-  README.md
-  requirements.txt
-  environment.yml
-  data/
-    train.csv
-    test.csv
-    covtype.info
-  notebook/
-    EDA.ipynb
-  scripts/
-    preprocessing_feature_engineering.py
-    model_selection.py
-    predict.py
-  results/
-    plots/
-      confusion_matrix_heatmap.png
-      learning_curve_best_model.png
-    test_predictions.csv
-    best_model.pkl
+forest-prediction/
+├── README.md
+├── requirements.txt
+├── environment.yml
+├── data/
+│   ├── train.csv
+│   ├── test.csv
+│   └── covtype.info
+├── notebook/
+│   └── EDA.ipynb
+├── scripts/
+│   ├── preprocessing_feature_engineering.py
+│   ├── model_selection.py
+│   └── predict.py
+└── results/
+    ├── best_model.pkl
+    ├── test_predictions.csv
+    └── plots/
+        ├── confusion_matrix_heatmap.png
+        └── learning_curve_best_model.png
 ```
 
-## Environment Setup
+## Что сделано
 
-### `venv` + `pip`
+### Feature engineering
 
+Добавлены 2 производных признака:
+- `Distance_To_Hydrology` - евклидово расстояние до гидрологии на основе горизонтальной и вертикальной дистанций;
+- `Fire_Road_Distance_Diff` - разность расстояний до пожарных точек и дорог.
+
+Логика feature engineering вынесена в общий модуль и используется и при обучении, и при инференсе.
+
+### Model selection
+
+Сравниваются 5 обязательных семейств моделей:
+- Gradient Boosting
+- KNN
+- Random Forest
+- SVM
+- Logistic Regression
+
+Для каждой модели запускается отдельный `GridSearchCV`.
+
+### Validation strategy
+
+Используется следующая схема:
+1. `train.csv` делится на `Train(1)` и `Test(1)` в пропорции 80/20 с `stratify=y`.
+2. На `Train(1)` выполняется `StratifiedKFold(n_splits=5, shuffle=True, random_state=42)`.
+3. По результатам CV выбирается лучшая модель.
+4. Лучшая модель дополнительно оценивается на внутреннем holdout `Test(1)`.
+5. Затем лучший pipeline переобучается на полном `train.csv` и сохраняется в `results/best_model.pkl`.
+6. `predict.py` использует сохраненный pipeline для внешнего `data/test.csv`.
+
+### Preprocessing
+
+Preprocessing встроен внутрь pipeline, чтобы избежать data leakage.
+
+Scaling применяется только к continuous-признакам и только для scale-sensitive моделей.
+
+## Используемые файлы
+
+### `scripts/preprocessing_feature_engineering.py`
+
+Отвечает за:
+- загрузку данных;
+- разделение признаков и target;
+- создание engineered features;
+- сборку общего preprocessing;
+- сборку model pipeline;
+- создание выходных директорий.
+
+### `scripts/model_selection.py`
+
+Отвечает за:
+- split `train.csv` на внутренние train/test;
+- настройку 5 семейств моделей;
+- запуск `GridSearchCV`;
+- сравнение результатов;
+- построение confusion matrix;
+- построение learning curve;
+- сохранение лучшего pipeline в `results/best_model.pkl`.
+
+### `scripts/predict.py`
+
+Отвечает за:
+- загрузку `results/best_model.pkl`;
+- чтение внешнего `data/test.csv`;
+- запуск предсказаний;
+- подсчет accuracy на внешнем тесте;
+- сохранение `results/test_predictions.csv`.
+
+### `notebook/EDA.ipynb`
+
+Содержит exploratory data analysis:
+- размер датасета;
+- типы данных;
+- распределение target;
+- описательные статистики;
+- анализ пропусков;
+- базовые визуализации;
+- краткие выводы по данным и признакам.
+
+## Установка и запуск
+
+### Вариант 1. `venv`
+
+Из корня репозитория:
+
+Windows:
 ```bash
 python -m venv .venv
 source .venv/Scripts/activate
-pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### `conda`
-
+Linux / macOS:
 ```bash
-conda env create -f environment.yml
-conda activate forest-prediction
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-## How To Run
+Запуск:
 
 ```bash
 python scripts/model_selection.py
@@ -62,72 +161,80 @@ python scripts/predict.py
 jupyter notebook notebook/EDA.ipynb
 ```
 
-## Python Files Summary
+### Вариант 2. `conda`
 
-### `scripts/preprocessing_feature_engineering.py`
+```bash
+conda env create -f environment.yml
+conda activate forest-prediction
+```
 
-- centralizes paths, constants, dataset loading, and `X / y` splitting
-- defines the reusable feature engineering step used in both training and prediction
-- builds the preprocessing logic used inside every model pipeline
+Запуск:
 
-### `scripts/model_selection.py`
+```bash
+python scripts/model_selection.py
+python scripts/predict.py
+jupyter notebook notebook/EDA.ipynb
+```
 
-- loads `data/train.csv`
-- creates the fixed 80/20 stratified Train(1) / Test(1) split
-- runs separate `GridSearchCV` pipelines for the five required model families:
-  - Gradient Boosting
-  - KNN
-  - Random Forest
-  - SVM (`LinearSVC`)
-  - Logistic Regression
-- selects the best model by cross-validation accuracy
-- evaluates the selected model on Test(1)
-- builds the confusion matrix DataFrame and saves the required plots
-- refits the best pipeline on the full train set (0) and saves it to `results/best_model.pkl`
+## Результаты
 
-### `scripts/predict.py`
+### Лучшая модель
 
-- loads the saved best pipeline from `results/best_model.pkl`
-- loads `data/test.csv`
-- applies the same preprocessing and feature engineering through the saved pipeline
-- computes external test accuracy
-- saves predictions to `results/test_predictions.csv`
+По результатам cross-validation лучшей моделью стала `Random Forest`.
 
-## Feature Engineering
+### Метрики
 
-The project uses two explicit engineered features and keeps feature creation intentionally limited:
+Текущие полученные метрики:
+- Best CV accuracy on `Train(1)`: `0.9160`
+- Holdout `Test(1)` accuracy: `0.9214`
+- Train accuracy on full `train set (0)`: `0.9631`
+- Final accuracy on external `test set (0)`: `0.7032`
 
-1. `Distance_To_Hydrology`
-   `sqrt(Horizontal_Distance_To_Hydrology^2 + Vertical_Distance_To_Hydrology^2)`
-2. `Fire_Road_Distance_Diff`
-   `Horizontal_Distance_To_Fire_Points - Horizontal_Distance_To_Roadways`
+Эти значения удовлетворяют целям проекта:
+- train accuracy < `0.98`
+- final external test accuracy > `0.65`
 
-These features are created inside the reusable preprocessing module and are applied identically during model selection and final prediction. No target leakage is used.
+## Артефакты
 
-## Model Selection Approach
+После запуска создаются:
+- `results/best_model.pkl` - сохраненный лучший полный pipeline;
+- `results/test_predictions.csv` - предсказания для внешнего тестового набора;
+- `results/plots/confusion_matrix_heatmap.png` - heatmap confusion matrix;
+- `results/plots/learning_curve_best_model.png` - learning curve лучшей модели.
 
-- target column: `Cover_Type`
-- Train(1) / Test(1) split: stratified 80/20 with `random_state=42`
-- cross-validation: `StratifiedKFold(n_splits=5, shuffle=True, random_state=42)`
-- scoring metric for all model comparisons: accuracy
-- preprocessing is embedded in every pipeline to keep model selection leakage-free
-- scaling is applied only for KNN, SVM, and Logistic Regression pipelines
-- the best model is chosen by CV accuracy and then evaluated on Test(1)
+## Особенности
+- SVM-семейство реализовано через `LinearSVC`, что соответствует SVM family.
 
-## Metrics
+## Краткий вывод
 
-- Best model family: `Random Forest`
-- Train accuracy on train set (0): `0.9631`
-- Final test accuracy on external test set (0): `0.7032`
+Проект реализует воспроизводимый pipeline выбора модели для forest cover classification с честным разделением данных, 5-fold cross-validation, feature engineering, сохранением лучшего pipeline и финальным предсказанием на внешнем тестовом наборе.
 
-## Artifacts
+## TOC
 
-Running `python scripts/model_selection.py` creates:
+- [Описание](#описание)
+- [Цель](#цель)
+- [Структура проекта](#структура-проекта)
+- [Что сделано](#что-сделано)
+  - [Feature engineering](#feature-engineering)
+  - [Model selection](#model-selection)
+  - [Validation strategy](#validation-strategy)
+  - [Preprocessing](#preprocessing)
+- [Используемые файлы](#используемые-файлы)
+  - [`scripts/preprocessing_feature_engineering.py`](#scriptspreprocessing_feature_engineeringpy)
+  - [`scripts/model_selection.py`](#scriptsmodel_selectionpy)
+  - [`scripts/predict.py`](#scriptspredictpy)
+  - [`notebook/EDA.ipynb`](#notebookedaipynb)
+- [Установка и запуск](#установка-и-запуск)
+  - [Вариант 1. `venv`](#вариант-1-venv)
+  - [Вариант 2. `conda`](#вариант-2-conda)
+- [Результаты](#результаты)
+  - [Лучшая модель](#лучшая-модель)
+  - [Метрики](#метрики)
+- [Артефакты](#артефакты)
+- [Особенности](#особенности)
+- [Краткий вывод](#краткий-вывод)
 
-- `results/best_model.pkl`
-- `results/plots/confusion_matrix_heatmap.png`
-- `results/plots/learning_curve_best_model.png`
-
-Running `python scripts/predict.py` creates:
-
-- `results/test_predictions.csv`
+## Авторы
+- Nazar Yestayev (@nyestaye / @legion2440)
+- Baktiyar Zhaksybay (@bzhaksyb)
+- Dias Yelubay (@dyelubay)
